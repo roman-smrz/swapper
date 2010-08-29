@@ -63,10 +63,12 @@ put db key value = useLBSAsCString key $ \ckey -> useLBSAsCString value $ \cvalu
         tcadbput db (castPtr ckey) (fromIntegral $ LBS.length key) (castPtr cvalue) (fromIntegral $ LBS.length value)
 
 
-get :: Database -> LBS.ByteString -> IO LBS.ByteString
+get :: Database -> LBS.ByteString -> IO (Maybe LBS.ByteString)
 get db key = useLBSAsCString key $ \ckey -> alloca $ \psize -> do
         size <- peek psize
         value <- tcadbget db (castPtr ckey) (fromIntegral $ LBS.length key) psize
-        size <- peek psize
-        strict <- BSU.unsafePackCStringFinalizer (castPtr value) (fromIntegral size) (free value)
-        return $ LBS.fromChunks [strict]
+        if value == nullPtr
+           then return Nothing
+           else do size <- peek psize
+                   strict <- BSU.unsafePackCStringFinalizer (castPtr value) (fromIntegral size) (free value)
+                   return $ Just $ LBS.fromChunks [strict]

@@ -11,6 +11,7 @@ import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString.Lazy as BS
 import Data.IORef
+import Data.Maybe
 
 import Happstack.Data.Serialize
 
@@ -55,7 +56,7 @@ swWeak key x db mload =
                 putMVar mload $ do
                         IO.putStrLn $ "Nacitani " ++ show (fst (deserialize key) :: Integer)
                         value <- TC.get db key
-                        return . fst . deserialize $ value
+                        return . fst . deserialize $ fromJust $ value
 
 
 putSwappable :: (Serialize a, NFData a) => Swapper f a -> a -> Swappable a
