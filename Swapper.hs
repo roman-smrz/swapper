@@ -63,14 +63,22 @@ putSwappable :: (Serialize a, NFData a) => Swapper f a -> a -> Swappable a
 putSwappable (Swapper db counter mcache _) x = deepseq x `pseq` unsafePerformIO $ do
         c <- takeMVar counter
         putMVar counter (c+1)
+        let sc = serialize c
 
         IO.putStrLn $ "Vytvareni " ++ show c
         mload <- newEmptyMVar
-        mvalue <- newMVar =<<! swWeak (serialize c) x db mload
+        mvalue <- newMVar =<<! swWeak sc x db mload
         cache <- takeMVar mcache
         irefresh <- newIORef =<< addValue cache x
         putMVar mcache cache
-        return' $! Swappable (serialize c) mvalue db mload mcache irefresh
+
+        let swappable = Swappable sc mvalue db mload mcache irefresh
+        addFinalizer swappable $ do
+                IO.putStrLn ("Mazani "++show c)
+                TC.out db sc
+                return ()
+
+        return' swappable
 
 
 getSwappable :: (Serialize a) => Swappable a -> a
@@ -109,3 +117,7 @@ adding f x sw@(Swapper mdb counter cache v) =
 
 getting :: (Serialize a) => (f (Swappable a) -> (Swappable a)) -> (Swapper f a -> a)
 getting f sw = getSwappable $ f $ spContent sw
+
+
+changing :: (Serialize a) => (f (Swappable a) -> f (Swappable a)) -> (Swapper f a -> Swapper f a)
+changing f (Swapper db counter cache content) = Swapper db counter cache $ f content
