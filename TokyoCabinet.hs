@@ -30,6 +30,8 @@ foreign import ccall "tcadb.h tcadbopen" tcadbopen :: Database -> CString -> IO 
 foreign import ccall "tcadb.h tcadbclose" tcadbclose :: Database -> IO Bool
 foreign import ccall "tcadb.h tcadbput" tcadbput :: Database -> Ptr () -> CInt -> Ptr () -> CInt -> IO Bool
 foreign import ccall "tcadb.h tcadbget" tcadbget :: Database -> Ptr () -> CInt -> Ptr CInt -> IO (Ptr ())
+foreign import ccall "tcadb.h tcadbout" tcadbout :: Database -> Ptr () -> CInt -> IO Bool
+foreign import ccall "tcadb.h tcadbcopy" tcadbcopy :: Database -> CString -> IO Bool
 
 
 open :: FilePath -> IO Database
@@ -72,3 +74,11 @@ get db key = useLBSAsCString key $ \ckey -> alloca $ \psize -> do
            else do size <- peek psize
                    strict <- BSU.unsafePackCStringFinalizer (castPtr value) (fromIntegral size) (free value)
                    return $ Just $ LBS.fromChunks [strict]
+
+
+out :: Database -> LBS.ByteString -> IO Bool
+out db key = useLBSAsCString key $ \ckey -> tcadbout db (castPtr ckey) (fromIntegral $ LBS.length key)
+
+
+copy :: Database -> FilePath -> IO Bool
+copy db filename = withCAString filename $ tcadbcopy db
