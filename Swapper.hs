@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, FlexibleContexts #-}
+{-# LANGUAGE RankNTypes, FlexibleContexts #-}
 
 module Swapper where
 
@@ -25,19 +25,18 @@ import Cache
 import qualified TokyoCabinet as TC
 
 
-data Swappable a = forall c. (Cache c a) => Swappable
-        { saKey :: !ByteString
-        , saValue :: !(MVar (Weak a))
-        , saDB :: !TC.Database
-        , saLoader :: !(MVar (IO a))
-        , saCache :: !(MVar c)
-        , saRefresh :: !(IORef (IO ()))
+type Key = ByteString
+
+
+data Swappable a = Swappable
+        { saKey :: !Key
+        , saValue :: !(MVar (Weak (a, IO ())))
         }
 
-data Swapper f a = forall c. (Cache c a) => Swapper
+data Swapper f a = Swapper
         { spDB :: !TC.Database
         , spCounter :: !(MVar Integer)
-        , spCache :: !(MVar c)
+        , spCache :: !(SomeCache a)
         , spContent :: !(f (Swappable a))
         }
 
@@ -46,55 +45,64 @@ f =<<! a = a `pseq` (f =<< a)
 return' x = x `pseq` return x
 
 
-swWeak :: (Serialize a) => ByteString -> a -> TC.Database -> MVar (IO a) -> IO (Weak a)
-swWeak key x db mload =
-        mkWeakPtr x $ Just $ do
+swPutNewWeak :: (Serialize a) => MVar (Weak (a, IO ())) -> Key -> (a, IO ()) -> TC.Database -> IO ()
+swPutNewWeak mvalue key (x, refresh) db = do
+        value <- mkWeak x (x, refresh) $ Just $ do
+                -- TODO: even with this lock, data may be requested before they are written to DB
+                lock <- takeMVar mvalue
                 IO.putStrLn $ "Ukladani " ++ show (fst (deserialize key) :: Integer)
                 TC.put db key (serialize x)
                 IO.putStrLn $ "Ulozeno " ++ show (fst (deserialize key) :: Integer)
+                putMVar mvalue lock
+        putMVar mvalue value
 
-                putMVar mload $ do
-                        IO.putStrLn $ "Nacitani " ++ show (fst (deserialize key) :: Integer)
-                        value <- TC.get db key
-                        return . fst . deserialize $ fromJust $ value
+
+swLoader :: (Serialize a) => Swapper f a -> Key -> IO (a, IO ())
+swLoader sp key = do
+        IO.putStrLn $ "Nacitani " ++ show (fst (deserialize key) :: Integer)
+
+        value <- TC.get (spDB sp) key
+        case value of
+             Just serialized -> do
+                     let x = fst $ deserialize serialized
+                     refresh <- addValue (spCache sp) x
+                     return (x, refresh)
+             Nothing -> error "Data not found in DB!"
 
 
 putSwappable :: (Serialize a, NFData a) => Swapper f a -> a -> Swappable a
-putSwappable (Swapper db counter mcache _) x = deepseq x `pseq` unsafePerformIO $ do
+putSwappable sp@(Swapper db counter mcache _) x = deepseq x `pseq` unsafePerformIO $ do
         c <- takeMVar counter
         putMVar counter (c+1)
-        let sc = serialize c
+        let key = serialize c
 
         IO.putStrLn $ "Vytvareni " ++ show c
-        mload <- newEmptyMVar
-        mvalue <- newMVar =<<! swWeak sc x db mload
-        cache <- takeMVar mcache
-        irefresh <- newIORef =<< addValue cache x
-        putMVar mcache cache
 
-        let swappable = Swappable sc mvalue db mload mcache irefresh
+        refresh <- addValue (spCache sp) x
+        mvalue <- newEmptyMVar
+        swPutNewWeak mvalue key (x,refresh) db
+
+        let swappable = Swappable key mvalue
         addFinalizer swappable $ do
                 IO.putStrLn ("Mazani "++show c)
-                TC.out db sc
+                TC.out db key
                 return ()
 
         return' swappable
 
 
-getSwappable :: (Serialize a) => Swappable a -> a
-getSwappable sa = unsafePerformIO $ do
+getSwappable :: (Serialize a) => Swapper f a -> Swappable a -> a
+getSwappable sp sa = unsafePerformIO $ do
         wx <- takeMVar $ saValue sa
         mx <- deRefWeak wx
         case mx of
-             Just x -> do
-                     -- (!) possibly refreshing now-replaced value
-                     join $ readIORef (saRefresh sa)
-                     putMVar (saValue sa) wx >> return x
+             Just (x, refresh) ->
+                     -- TODO: possibly refreshing now-replaced value
+                     refresh >> putMVar (saValue sa) wx >> return x
 
              Nothing -> do
-                     loader <- takeMVar (saLoader sa)
-                     x <- loader
-                     putMVar (saValue sa) =<< swWeak (saKey sa) x (saDB sa) (saLoader sa)
+                     pair@(x, _) <- swLoader sp $ saKey sa
+                     swPutNewWeak (saValue sa) (saKey sa) pair (spDB sp)
                      return x
 
 
@@ -103,21 +111,22 @@ mkSwapper :: (Serialize a, NFData a, Functor f, Cache c a) => FilePath -> c -> f
 mkSwapper filename cache v = do
         db <- TC.open (filename ++ ".tcb")
         counter <- newMVar (0 :: Integer)
-        mcache <- newMVar cache
-        let swapper = Swapper db counter mcache $ fmap (putSwappable swapper) v
+
+        let swapper = Swapper db counter (SomeCache cache) $ fmap (putSwappable swapper) v
          in return swapper
 
 
-adding :: (Serialize a, NFData a) => ((Swappable a) -> f (Swappable a) -> f (Swappable a)) ->
+adding :: (Serialize a, NFData a) =>
+        (forall b. b -> f b -> f b) ->
         (a -> Swapper f a -> Swapper f a)
 adding f x sw@(Swapper mdb counter cache v) =
         let sx = putSwappable sw x
          in sx `pseq` Swapper mdb counter cache $ f sx v
 
 
-getting :: (Serialize a) => (f (Swappable a) -> (Swappable a)) -> (Swapper f a -> a)
-getting f sw = getSwappable $ f $ spContent sw
+getting :: (Serialize a) => (forall b. f b -> b) -> (Swapper f a -> a)
+getting f sp = getSwappable sp $ f $ spContent sp
 
 
-changing :: (Serialize a) => (f (Swappable a) -> f (Swappable a)) -> (Swapper f a -> Swapper f a)
+changing :: (Serialize a) => (forall b. f b -> f b) -> (Swapper f a -> Swapper f a)
 changing f (Swapper db counter cache content) = Swapper db counter cache $ f content
