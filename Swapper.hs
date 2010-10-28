@@ -31,6 +31,7 @@ type Key = ByteString
 data Swappable a = Swappable
         { saKey :: !Key
         , saValue :: !(MVar (Weak (a, IO ())))
+        , saFinalized :: MVar ()
         }
 
 data Swapper f a = Swapper
@@ -45,16 +46,16 @@ f =<<! a = a `pseq` (f =<< a)
 return' x = x `pseq` return x
 
 
-swPutNewWeak :: (Serialize a) => MVar (Weak (a, IO ())) -> Key -> (a, IO ()) -> TC.Database -> IO ()
-swPutNewWeak mvalue key (x, refresh) db = do
+swPutNewWeak :: (Serialize a) => Swappable a -> (a, IO ()) -> TC.Database -> IO ()
+swPutNewWeak sa (x, refresh) db = do
         value <- mkWeak x (x, refresh) $ Just $ do
-                -- TODO: even with this lock, data may be requested before they are written to DB
-                lock <- takeMVar mvalue
-                IO.putStrLn $ "Ukladani " ++ show (fst (deserialize key) :: Integer)
-                TC.put db key (serialize x)
-                IO.putStrLn $ "Ulozeno " ++ show (fst (deserialize key) :: Integer)
-                putMVar mvalue lock
-        putMVar mvalue value
+                IO.putStrLn $ "Ukladani " ++ show (fst (deserialize $ saKey sa) :: Integer)
+                TC.put db (saKey sa) (serialize x)
+                putMVar (saFinalized sa) ()
+                IO.putStrLn $ "Ulozeno " ++ show (fst (deserialize $ saKey sa) :: Integer)
+
+        takeMVar (saFinalized sa)
+        putMVar (saValue sa) value
 
 
 swLoader :: (Serialize a) => Swapper f a -> Key -> IO (a, IO ())
@@ -80,14 +81,15 @@ putSwappable sp@(Swapper db counter mcache _) x = deepseq x `pseq` unsafePerform
 
         refresh <- addValue (spCache sp) x
         mvalue <- newEmptyMVar
-        swPutNewWeak mvalue key (x,refresh) db
+        mfin <- newMVar ()
 
-        let swappable = Swappable key mvalue
+        let swappable = Swappable key mvalue mfin
         addFinalizer swappable $ do
                 IO.putStrLn ("Mazani "++show c)
                 TC.out db key
                 return ()
 
+        swPutNewWeak swappable (x,refresh) db
         return' swappable
 
 
@@ -101,8 +103,11 @@ getSwappable sp sa = unsafePerformIO $ do
                      refresh >> putMVar (saValue sa) wx >> return x
 
              Nothing -> do
+                     finalize wx
+                     readMVar (saFinalized sa)
+
                      pair@(x, _) <- swLoader sp $ saKey sa
-                     swPutNewWeak (saValue sa) (saKey sa) pair (spDB sp)
+                     swPutNewWeak sa pair (spDB sp)
                      return x
 
 
