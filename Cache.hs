@@ -2,12 +2,22 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Cache where
 
 import Control.Concurrent.MVar
 import Control.Monad
+
+import Data.Binary.Get
+import Data.Binary.Put
 import Data.IORef
+import Data.Typeable
+
+import Happstack.Data
+
+import Snapshot
+
 
 class Cache a v | a -> v where
         addValue :: a -> v -> IO (IO ())
@@ -20,21 +30,29 @@ instance Cache (SomeCache v) v where
 
 
 
-data ClockCache a = ClockCache (MVar [(IORef a, IORef Bool)])
+data ClockCache a = ClockCache { ccSize :: Int,  ccData :: MVar [(IORef a, IORef Bool)] }
+        deriving (Typeable)
 
 mkClockCache :: Int -> IO (ClockCache a)
-mkClockCache = return . ClockCache <=< newMVar . cycle <=< 
-        mapM (const $ liftM2 (,) (newIORef undefined) (newIORef False)) . enumFromTo 1
+mkClockCache size = return . ClockCache size =<< newMVar . cycle =<< 
+        mapM (const $ liftM2 (,) (newIORef undefined) (newIORef False)) [1..size]
 
 
 instance Cache (ClockCache a) a where
-        addValue cache@(ClockCache mdata) x = do
-                add =<< takeMVar mdata
+        addValue cache x = do
+                add =<< takeMVar (ccData cache)
                 where add ((ix, ikeep):rest) = do
                               keep <- readIORef ikeep
                               modifyIORef ikeep not
 
                               if keep then add rest
                                       else do writeIORef ix x
-                                              putMVar mdata rest
+                                              putMVar (ccData cache) rest
                                               return (writeIORef ikeep True)
+
+
+instance Version (ClockCache a)
+
+instance (Typeable a) => Snapshot (ClockCache a) where
+        getFromSnapshot = return . mkClockCache . fromIntegral =<< getWord64le
+        putToSnapshot = return . (putWord64le.fromIntegral.ccSize)

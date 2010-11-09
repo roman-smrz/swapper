@@ -1,4 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module TokyoCabinet where
 
@@ -10,6 +11,8 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Unsafe as BSU
 
+import Data.Typeable
+
 import Foreign.C
 import Foreign.C.Types
 import Foreign.C.String
@@ -20,7 +23,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
 import Foreign.Storable
 
-data TCADB
+data TCADB deriving Typeable
 type Database = Ptr TCADB
 
 
