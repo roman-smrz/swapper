@@ -3,22 +3,18 @@ module Main where
 import Prelude hiding (lookup)
 
 import Swapper
-import SwapMap
 
 import Control.DeepSeq
 import Control.Monad
 
-import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
-import Data.Maybe
 import Data.IORef
 
 import System.Mem
 
 import Cache
-import TokyoCabinet
 import Snapshot
 
 
@@ -27,6 +23,7 @@ instance NFData BS.ByteString where
 
 
 
+main :: IO ()
 main = do
         cache <- mkClockCache 5
         x <- newIORef =<< mkSwapper "data" cache []
@@ -52,7 +49,7 @@ main = do
                 BS.writeFile "out" x'
                 performGC
 
-        forM_ [2..6] $ \i -> do
+        forM_ [2..6] $ \_ -> do
                 modifyIORef x $ changing tail
                 performGC
 

@@ -16,6 +16,7 @@ import Snapshot
 instance NFData BS.ByteString where
         rnf x = x `seq` ()
 
+main :: IO ()
 main = do
         x <- runGet getFromSnapshot =<< BSL.readFile "snapshot2"
         print . BS.length . getting last $ x

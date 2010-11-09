@@ -14,13 +14,8 @@ import qualified Data.ByteString.Unsafe as BSU
 import Data.Typeable
 
 import Foreign.C
-import Foreign.C.Types
-import Foreign.C.String
-import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Marshal
-import Foreign.Marshal.Alloc
-import Foreign.Marshal.Utils
 import Foreign.Storable
 
 data TCADB deriving Typeable
@@ -70,7 +65,6 @@ put db key value = useLBSAsCString key $ \ckey -> useLBSAsCString value $ \cvalu
 
 get :: Database -> LBS.ByteString -> IO (Maybe LBS.ByteString)
 get db key = useLBSAsCString key $ \ckey -> alloca $ \psize -> do
-        size <- peek psize
         value <- tcadbget db (castPtr ckey) (fromIntegral $ LBS.length key) psize
         if value == nullPtr
            then return Nothing

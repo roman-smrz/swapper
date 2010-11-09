@@ -8,15 +8,12 @@ import Control.DeepSeq
 import Control.Monad
 import Control.Parallel
 
-import Data.ByteString.Lazy as BS
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Maybe
 import Data.IORef
 
 import Happstack.Data.Serialize
 
-import System.Mem
 import System.Mem.Weak
 import System.IO.Unsafe
 import qualified System.IO as IO
@@ -35,6 +32,7 @@ data SwapMapData k a = forall c. (Cache c k) => Current
                         }
                      | Diff k (Maybe a) (MVar (SwapMapData k a))
 
+isCurrent :: SwapMapData k a -> Bool
 isCurrent (Diff _ _ _) = False
 isCurrent _ = True
 

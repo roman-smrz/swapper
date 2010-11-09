@@ -9,17 +9,13 @@ import Control.Concurrent.QSemN
 import Control.DeepSeq
 import Control.Parallel
 
-import Data.Binary.Get
-import Data.Binary.Put
 import Data.ByteString.Lazy as BS hiding (map)
 import Data.IORef
-import Data.Maybe
 import Data.Traversable
 import Data.Typeable
 
 import Happstack.Data.Serialize
 
-import System.Mem
 import System.Mem.Weak
 import System.IO.Unsafe
 
@@ -182,7 +178,9 @@ instance (
                         putData
 
 
+(=<<!) :: (Monad m) => (a -> m b) -> m a -> m b
 f =<<! a = a `pseq` (f =<< a)
+return' :: (Monad m) => a -> m a
 return' x = x `pseq` return x
 
 

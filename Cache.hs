@@ -50,6 +50,8 @@ instance Cache (ClockCache a) a where
                                               putMVar (ccData cache) rest
                                               return (writeIORef ikeep True)
 
+                      add [] = error "ClockCache: we got to the end of infinite list"
+
 
 instance Version (ClockCache a)
 
