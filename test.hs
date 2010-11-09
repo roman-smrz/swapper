@@ -19,6 +19,7 @@ import System.Mem
 
 import Cache
 import TokyoCabinet
+import Snapshot
 
 
 instance NFData BS.ByteString where
@@ -27,24 +28,6 @@ instance NFData BS.ByteString where
 
 
 main = do
-        {-
-
-        cache <- mkClockCache 5
-        x <- (newIORef =<< mkSwapMap "smap" cache
-                :: IO (IORef (SwapMap Integer BS.ByteString)))
-
-        forM_ [1..10] $ \k -> do
-                d <- BS.readFile "in"
-                x' <- readIORef x
-                writeIORef x $! insert k d x'
-                performGC
-
-        forM_ [3..9] $ \k -> do
-                BS.writeFile "out" . fromJust . lookup k =<< readIORef x
-                performGC
-                -}
-
---{-
         cache <- mkClockCache 5
         x <- newIORef =<< mkSwapper "data" cache []
 
@@ -66,7 +49,6 @@ main = do
 
         forM_ [2..6] $ \i -> do
                 x' <- return . getting (!!i) =<< readIORef x
-                --print $ BS.length x'
                 BS.writeFile "out" x'
                 performGC
 
@@ -80,5 +62,15 @@ main = do
                 writeIORef x $! adding (:) d x'
                 performGC
 
-        --close . spDB =<< readIORef x
-                --}
+        BSL.writeFile "snapshot0" . runPut =<< putToSnapshot =<< readIORef x
+
+        forM_ [1..7] $ \_ -> do
+                d <- BS.readFile "in"
+                x' <- readIORef x
+                writeIORef x $! adding (:) d x'
+                performGC
+
+        BSL.writeFile "snapshot1" . runPut =<< putToSnapshot =<< readIORef x
+        BSL.writeFile "snapshot2" . runPut =<< putToSnapshot =<< readIORef x
+
+        print . BS.length . getting last =<< readIORef x
