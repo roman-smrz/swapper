@@ -4,7 +4,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Cache where
+module Data.Disk.Cache where
 
 import Control.Concurrent.MVar
 import Control.Monad
@@ -16,7 +16,7 @@ import Data.Typeable
 
 import Happstack.Data
 
-import Snapshot
+import Data.Disk.Snapshot
 
 
 class Cache a v | a -> v where

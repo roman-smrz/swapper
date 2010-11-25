@@ -1,0 +1,44 @@
+name:           swapper
+version:        0.1
+synopsis:       System for automatically swapping data from in-memory structures to disk
+description:
+    This package provides wrapper for functors, which allows their data to be
+    automatically swapped to disk and loaded back when necessary. Although
+    interaction with filesystem is required, whole interface (with exception of
+    initialization) is pure and safe as long as no external manipulation with
+    used database files happens while the program is running.
+
+    Because only actual data, not indices (in Data.Map.Map, for example), are
+    swapped and same accounting information are remembered for each item, this
+    system is suitable mainly for situations where values are considerably
+    larger then indices. Furthermore, creating complete snapshots to a file of
+    this structure is supported; such snapshot can be then loaded, with
+    individual values being read as they are requested.
+
+maintainer:     Roman Smrž <roman.smrz@seznam.cz>
+copyright:      2010, Roman Smrž
+category:       Data, Disk
+license:        BSD3
+license-file:   LICENSE
+
+build-type:          Simple
+cabal-version:       >=1.2
+
+extra-source-files:
+    test/test.hs
+    test/test-load.hs
+    test/Makefile
+
+library
+  build-depends:     base >= 3 && < 5, bytestring, happstack-data, binary, parallel, deepseq
+  hs-source-dirs:    src
+
+  exposed-modules:
+      Data.Disk.Swapper
+      Data.Disk.Cache
+      Data.Disk.Snapshot
+  other-modules:
+      Data.Disk.TokyoCabinet
+
+  ghc-options:       -Wall -fno-warn-unused-do-bind
+  extra-libraries:   tokyocabinet

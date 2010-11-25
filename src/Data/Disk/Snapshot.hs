@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances #-}
 
-module Snapshot where
+module Data.Disk.Snapshot where
 
 import Control.Monad
 

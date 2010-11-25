@@ -10,8 +10,8 @@ import qualified Data.ByteString.Lazy.Char8 as BSL
 
 import System.Mem
 
-import Swapper
-import Snapshot
+import Data.Disk.Swapper
+import Data.Disk.Snapshot
 
 instance NFData BS.ByteString where
         rnf x = x `seq` ()

@@ -2,7 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Swapper where
+module Data.Disk.Swapper where
 
 import Control.Concurrent.MVar
 import Control.Concurrent.QSemN
@@ -21,9 +21,9 @@ import System.IO.Unsafe
 
 import qualified System.IO as IO
 
-import Cache
-import Snapshot
-import qualified TokyoCabinet as TC
+import Data.Disk.Cache
+import Data.Disk.Snapshot
+import qualified Data.Disk.TokyoCabinet as TC
 
 
 type Key = ByteString

@@ -1,7 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module TokyoCabinet where
+module Data.Disk.TokyoCabinet where
 
 import Control.Monad
 

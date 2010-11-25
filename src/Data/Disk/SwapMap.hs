@@ -1,6 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
-module SwapMap where
+module Data.Disk.SwapMap where
 
 
 import Control.Concurrent.MVar
@@ -18,8 +18,8 @@ import System.Mem.Weak
 import System.IO.Unsafe
 import qualified System.IO as IO
 
-import Cache
-import qualified TokyoCabinet as TC
+import Data.Disk.Cache
+import qualified TokyoCabinet as Data.Disk.TC
 
 
 data (Ord k, Serialize k, Serialize a) => SwapMap k a = SwapMap (MVar (SwapMapData k a))

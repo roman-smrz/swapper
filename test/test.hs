@@ -2,8 +2,6 @@ module Main where
 
 import Prelude hiding (lookup)
 
-import Swapper
-
 import Control.DeepSeq
 import Control.Monad
 
@@ -14,8 +12,9 @@ import Data.IORef
 
 import System.Mem
 
-import Cache
-import Snapshot
+import Data.Disk.Cache
+import Data.Disk.Snapshot
+import Data.Disk.Swapper
 
 
 instance NFData BS.ByteString where
