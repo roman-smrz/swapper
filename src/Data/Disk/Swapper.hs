@@ -2,7 +2,21 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Data.Disk.Swapper where
+-- |
+-- Maintainer  : Roman Smrž <roman.smrz@seznam.cz>
+-- Stability   : experimental
+--
+-- This module provides the actual wrapper around functors, which allows them
+-- to swap their values to disk. Before any use, original structure have to by
+-- turned into appropriate 'Swapper' using function 'mkSwapper'.
+
+module Data.Disk.Swapper (
+        Swapper,
+        mkSwapper,
+        adding,
+        getting,
+        changing,
+) where
 
 import Control.Concurrent.MVar
 import Control.Concurrent.QSemN

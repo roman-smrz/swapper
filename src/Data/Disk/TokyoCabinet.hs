@@ -1,7 +1,12 @@
 {-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Data.Disk.TokyoCabinet where
+module Data.Disk.TokyoCabinet (
+        Database,
+        open, close,
+        put, get, out,
+        copy,
+) where
 
 import Control.Monad
 
