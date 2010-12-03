@@ -8,7 +8,25 @@
 --
 -- This module provides the actual wrapper around functors, which allows them
 -- to swap their values to disk. Before any use, original structure have to by
--- turned into appropriate 'Swapper' using function 'mkSwapper'.
+-- turned into appropriate 'Swapper' using function 'mkSwapper'; this has to be
+-- done in IO monad. The created object can then be used in normal pure way,
+-- when internal side effects concern only database files determined by the
+-- first parameter passed to 'mkSwapper'; those should not be altered
+-- externally during the program run.
+--
+-- Because the Swapper is different type than the original functor, lifting
+-- functions are provided to allow manipulation with it. Those are 'adding' for
+-- functions, which add new elements like ':' or 'Data.Map.insert', 'getting'
+-- for function retrieving elements like 'head' or 'Data.Map.lookup',
+-- 'changing' for functions changing the structure itself like 'tail'. Concrete
+-- examples are provided it the description of the aforementioned functions.
+--
+-- When creating snapshot using 'putToSnapshot', all items present it structure
+-- are saved into the current database file (its name is then recorded to the
+-- snapshot itself in order to be able to load in future) and new one is
+-- created for items added thereafter. When the snapshot is loaded using
+-- 'getFromSnapshot', only indices and auxiliary data are loaded into the
+-- memory at that time; values are read on demand from their database file.
 
 module Data.Disk.Swapper (
         Swapper,
@@ -263,9 +281,23 @@ getSwappable sp sa = unsafePerformIO $ do
                      return x
 
 
+mkSwapper :: (Serialize a, NFData a, Functor f)
+        => FilePath     -- ^ Prefix of database files
+        -> ClockCache a -- ^ Cache that decides, which items are kept in memory
+        -> f a          -- ^ Initial data
+        -> IO (Swapper f a)
 
-mkSwapper :: (Serialize a, NFData a, Functor f) =>
-        FilePath -> ClockCache a -> f a -> IO (Swapper f a)
+-- ^
+-- Creates 'Swappable' from given functor object. First parameter is prefix
+-- from which the name of database files are derived (by appending their index
+-- number and database extension), those files should not be altered by
+-- external files when the program is running or between saving and loading
+-- snapshots.
+--
+-- Given cache determines, which items are to be swapped onto disk, when
+-- available slots are used up (and also how many of such slots actually exists
+-- in the first place); can be shared among several 'Swappable' objects.
+
 mkSwapper filename cache v = do
         db <- dbOpen filename
         counter <- newMVar (0 :: Integer)
@@ -274,6 +306,18 @@ mkSwapper filename cache v = do
          in return swapper
 
 
+-- |
+-- Lifting function used for adding new elements to the 'Swapper' object. Needs
+-- to be applied to functions like ':' or 'Data.Map.insert' for them to act on
+-- Swapper instead of the original structure. Requires the function in its
+-- first argument to work for functor containing arbitrary type.
+--
+-- > a :: Swapper [] Int
+-- > let a' = adding (:) 6 a
+-- >
+-- > b :: Swapper (Map String) Int
+-- > let b' = adding (insert "new") 42 b
+
 adding :: (Serialize a, NFData a) =>
         (forall b. b -> f b -> f b) ->
         (a -> Swapper f a -> Swapper f a)
@@ -281,9 +325,34 @@ adding f x sp = let sx = putSwappable sp x
                  in sx `pseq` sp { spContent = f sx (spContent sp) }
 
 
+-- |
+-- Function used to lift functions getting elements from inner structure,
+-- like 'head' or 'Data.Map.lookup', to functions getting elements from 'Swapper'
+-- object. Functions in the first argument needs to work on 'f' containing
+-- elements of arbitrary type.
+--
+-- > a :: Swapper [] Int
+-- > let x = getting head a
+-- >
+-- > b :: Swapper (Map String) Int
+-- > let y = getting (lookup "some") b
+
 getting :: (Serialize a) => (forall b. f b -> b) -> (Swapper f a -> a)
 getting f sp = getSwappable sp $ f $ spContent sp
 
+
+-- |
+--
+-- This function is needed to make functions changing the structure somehow
+-- (like 'tail' or 'Data.Map.delete'), to change the 'Swapper' instead. Like
+-- the previous lifting functions, its first argument needs to work for any
+-- values of any type.
+--
+-- > a :: Swapper [] Int
+-- > let a' = changing tail a
+-- >
+-- > b :: Swapper (Map String) Int
+-- > let b' = changing (delete "some") b
 
 changing :: (Serialize a) => (forall b. f b -> f b) -> (Swapper f a -> Swapper f a)
 changing f sp = sp { spContent = f (spContent sp) }
