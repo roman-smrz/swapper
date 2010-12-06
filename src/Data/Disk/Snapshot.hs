@@ -1,5 +1,15 @@
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances #-}
 
+-- |
+-- Maintainer  : Roman Smrž <roman.smrz@seznam.cz>
+-- Stability   : experimental
+--
+-- 'Snapshot' is a type class generalizing 'Serialize', as it, apart from
+-- writing values in the 'Put' monad (or reading in 'Get'), allows to perform
+-- arbitrary 'IO' actions, like saving data to (or loading from) some external
+-- database files. Any instance of 'Serialize' is also trivially an instance of
+-- 'Snapshot'.
+
 module Data.Disk.Snapshot where
 
 import Control.Monad
