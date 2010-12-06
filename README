@@ -1,0 +1,3 @@
+User documentation is provided in the form of Haddock markup, from which the
+HTML docs can be extracted. Implementation detail are to be found in the rest
+of the comments, mainly in Data/Disk/Swapper.hs.
