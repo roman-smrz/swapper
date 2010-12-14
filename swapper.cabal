@@ -30,11 +30,12 @@ extra-source-files:
     test/Makefile
 
 library
-  build-depends:     base >= 3 && < 5, bytestring, happstack-data, binary, parallel, deepseq
+  build-depends:     base >= 3 && < 5, bytestring, happstack-data, happstack-state, binary, parallel, deepseq
   hs-source-dirs:    src
 
   exposed-modules:
       Data.Disk.Swapper
+      Data.Disk.Swapper.HappstackCompat
       Data.Disk.Cache
       Data.Disk.Snapshot
   other-modules:
