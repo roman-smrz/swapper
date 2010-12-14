@@ -88,6 +88,7 @@ module Data.Disk.Swapper (
         adding,
         getting,
         changing,
+        swapperDBPrefix,
 ) where
 
 
@@ -211,8 +212,8 @@ instance (
     ) => Snapshot (Swapper f a) where
 
         getFromSnapshot = do
-                spCnt <- safeGet
                 prefix <- safeGet
+                spCnt <- safeGet
                 cnt <- safeGet
                 mkCache <- getFromSnapshot
                 mkKeys <- getFromSnapshot
@@ -279,8 +280,8 @@ instance (
                 putMVar (sdDB $ spDB sp) (ndb:cdb':rest)
 
                 return $ do
-                        safePut spCnt
                         safePut (sdPrefix $ spDB sp)
+                        safePut spCnt
                         safePut cnt
                         putCache
                         putData
@@ -437,3 +438,8 @@ getting f sp = getSwappable sp $ f $ spContent sp
 
 changing :: (Serialize a) => (forall b. f b -> f b) -> (Swapper f a -> Swapper f a)
 changing f sp = sp { spContent = f (spContent sp) }
+
+
+
+swapperDBPrefix :: Swapper f a -> FilePath
+swapperDBPrefix = sdPrefix . spDB
