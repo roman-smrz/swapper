@@ -78,3 +78,14 @@ instance Version (ClockCache a)
 instance (Typeable a) => Snapshot (ClockCache a) where
         getFromSnapshot = return . mkClockCache . fromIntegral =<< getWord64le
         putToSnapshot = return . (putWord64le.fromIntegral.ccSize)
+
+
+
+-- | 'NullCache' does not cache any values
+data NullCache a = NullCache
+
+nullCache :: SomeCache a
+nullCache = SomeCache NullCache
+
+instance Cache (NullCache a) a where
+    addValue _ _ = return (return ())
