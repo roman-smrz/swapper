@@ -27,6 +27,7 @@ cabal-version:       >=1.2
 extra-source-files:
     test/test.hs
     test/test-load.hs
+    test/happstack.hs
     test/Makefile
 
 library

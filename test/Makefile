@@ -1,4 +1,4 @@
-all: test test-load test-happstack
+all: test test-load happstack
 
 GHCOPTS+=-ltokyocabinet -i../src
 
@@ -8,8 +8,8 @@ test: *.hs
 test-load: *.hs
 	ghc --make test-load.hs $(GHCOPTS)
 
-test-happstack: *.hs
-	ghc --make test-happstack.hs $(GHCOPTS)
+happstack: *.hs
+	ghc --make happstack.hs $(GHCOPTS)
 
 clean:
 	rm -f *.hi *.o test test-load data* snapshot*

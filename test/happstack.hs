@@ -55,7 +55,7 @@ instance Component AppState where
                                      return $ AppState sw
                              Nothing -> do
                                      cache <- mkClockCache 5
-                                     sw <- mkSwapper "_local/test-happstack_state/data" cache []
+                                     sw <- mkSwapper "_local/happstack_state/data" cache []
                                      putMVar initialSwapper (Just sw)
                                      return $ AppState sw
 
