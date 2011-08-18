@@ -42,6 +42,12 @@ class Cache a v | a -> v where
         addValue :: a -> v -> IO (IO ())
 
 
+-- |
+-- Version of 'addValue', which works with a cache in 'IORef'.
+addValueRef :: Cache a v => IORef a -> v -> IO (IO ())
+addValueRef r x = flip addValue x =<< readIORef r
+
+
 data SomeCache v = forall c. (Cache c v) => SomeCache !c
 
 instance Cache (SomeCache v) v where
@@ -72,12 +78,6 @@ instance Cache (ClockCache a) a where
 
                       add [] = error "ClockCache: we got to the end of infinite list"
 
-
-instance Version (ClockCache a)
-
-instance (Typeable a) => Snapshot (ClockCache a) where
-        getFromSnapshot = return . mkClockCache . fromIntegral =<< getWord64le
-        putToSnapshot = return . (putWord64le.fromIntegral.ccSize)
 
 
 

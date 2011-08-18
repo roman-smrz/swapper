@@ -24,8 +24,8 @@ instance NFData BS.ByteString where
 
 main :: IO ()
 main = do
-        cache <- mkClockCache 5
-        x <- newIORef =<< mkSwapper "data" cache []
+        x <- newIORef =<< mkSwapper "data" []
+        setCacheRef x =<< mkClockCache 5
 
         forM_ [1..7] $ \_ -> do
                 d <- BS.readFile "in"

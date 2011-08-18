@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy.Char8 as BSL
 
 import System.Mem
 
+import Data.Disk.Cache
 import Data.Disk.Swapper
 import Data.Disk.Snapshot
 
@@ -19,6 +20,7 @@ instance NFData BS.ByteString where
 main :: IO ()
 main = do
         x <- runGet getFromSnapshot =<< BSL.readFile "snapshot2"
+        setCache x =<< mkClockCache 5
         print . BS.length . getting last $ x
 
         let y = adding (:) (BS.pack "aaa") $

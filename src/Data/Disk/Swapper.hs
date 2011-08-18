@@ -85,6 +85,7 @@
 module Data.Disk.Swapper (
         Swapper,
         mkSwapper,
+        setCache, setCacheRef,
         adding,
         getting,
         changing,
@@ -95,6 +96,7 @@ module Data.Disk.Swapper (
 import Control.Concurrent.MVar
 import Control.Concurrent.QSemN
 import Control.DeepSeq
+import Control.Monad hiding (forM)
 import Control.Parallel
 
 import Data.ByteString.Lazy as BS hiding (map)
@@ -131,7 +133,7 @@ data Swappable a = Swappable
 data Swapper f a = Swapper
         { spDB :: !SwapDB
         , spCounter :: !(MVar Integer)
-        , spCache :: !(ClockCache a)
+        , spCache :: !(IORef (SomeCache a))
         , spContent :: !(f (Swappable a))
         }
 
@@ -215,12 +217,11 @@ instance (
                 prefix <- safeGet
                 spCnt <- safeGet
                 cnt <- safeGet
-                mkCache <- getFromSnapshot
                 mkKeys <- getFromSnapshot
 
                 return $ do
                         mcounter <- newMVar spCnt
-                        cache <- mkCache
+                        cache <- newIORef nullCache
 
                         keys <- mkKeys
                         emptyWeak <- mkWeakPtr undefined Nothing
@@ -247,7 +248,6 @@ instance (
         putToSnapshot sp = do
                 IO.putStrLn "Snapshot (start)"
                 spCnt <- readMVar (spCounter sp)
-                putCache <- putToSnapshot (spCache sp)
                 putData <- putToSnapshot $ fmap saKey $ spContent sp
 
                 forM (spContent sp) $ \sa -> do
@@ -283,7 +283,6 @@ instance (
                         safePut (sdPrefix $ spDB sp)
                         safePut spCnt
                         safePut cnt
-                        putCache
                         putData
 
 
@@ -314,7 +313,7 @@ swLoader sp key = do
         case value of
              Just serialized -> do
                      let x = fst $ deserialize serialized
-                     refresh <- addValue (spCache sp) x
+                     refresh <- addValueRef (spCache sp) x
                      return (x, refresh)
              Nothing -> error "Data not found in DB!"
 
@@ -329,7 +328,7 @@ putSwappable sp x = deepseq x `pseq` unsafePerformIO $ do
 
         IO.putStrLn $ "Vytvareni " ++ show c
 
-        refresh <- addValue (spCache sp) x
+        refresh <- addValueRef (spCache sp) x
         mvalue <- newEmptyMVar
         mfin <- newMVar ()
 
@@ -365,27 +364,43 @@ getSwappable sp sa = unsafePerformIO $ do
 
 mkSwapper :: (Serialize a, NFData a, Functor f)
         => FilePath     -- ^ Prefix of database files
-        -> ClockCache a -- ^ Cache that decides, which items are kept in memory
         -> f a          -- ^ Initial data
         -> IO (Swapper f a)
 
 -- ^
--- Creates 'Swappable' from given functor object. First parameter is prefix
+-- Creates 'Swapper' from given functor object. The first parameter is prefix
 -- from which the name of database files are derived (by appending their index
 -- number and database extension), those files should not be altered by
 -- external files when the program is running or between saving and loading
 -- snapshots.
 --
--- Given cache determines, which items are to be swapped onto disk, when
--- available slots are used up (and also how many of such slots actually exists
--- in the first place); can be shared among several 'Swappable' objects.
+-- The 'Swapper' initially uses the 'NullCache', which does not keep any data
+-- in memory, apart from those referenced from other places.
 
-mkSwapper filename cache v = do
+mkSwapper filename v = do
         db <- dbOpen filename
         counter <- newMVar (0 :: Integer)
+        cache <- newIORef nullCache
 
         let swapper = Swapper db counter cache $ fmap (putSwappable swapper) v
          in return swapper
+
+
+-- |
+-- Sets cache for given 'Swapper' object; it determines, which items are to be
+-- swapped onto disk, when available slots are used up (and also how many of
+-- such slots actually exists in the first place); can be shared among several
+-- 'Swappable' objects.
+
+setCache :: Cache c a => Swapper f a -> c -> IO ()
+setCache swapper = writeIORef (spCache swapper) . SomeCache
+
+
+-- |
+-- Analogous to the 'setCache', but works with 'Swapper' encosed in an 'IORef'.
+
+setCacheRef :: Cache c a => IORef (Swapper f a) -> c -> IO ()
+setCacheRef ref cache = flip setCache cache =<< readIORef ref
 
 
 -- |

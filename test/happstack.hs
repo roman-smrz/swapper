@@ -34,9 +34,7 @@ instance Version AppState
 -- initial swapper to be used when none was loaded from snapshot
 {-# NOINLINE initialSwapper #-}
 initialSwapper :: Swapper [] BS.ByteString
-initialSwapper = unsafePerformIO $ do
-    cache <- mkClockCache 5
-    mkSwapper "_local/happstack_state/data" cache []
+initialSwapper = unsafePerformIO $ mkSwapper "_local/happstack_state/data" []
 
 instance Component AppState where
     type Dependencies AppState = End
@@ -53,6 +51,15 @@ instance NFData BS.ByteString where
 
 
 
+-- this need to be call at the startup to initialize the cache
+initCache :: Update AppState ()
+initCache = do
+    -- we need to force evaluation of the IO computation, hence the () <-
+    () <- gets $ \(AppState s) -> unsafePerformIO $ do
+        putStrLn "initCache"
+        setCache s =<< mkClockCache 5
+    return ()
+
 
 -- adds entry to the swapper in global state
 addState :: BS.ByteString -> Update AppState ()
@@ -66,13 +73,14 @@ addState x = do
     s' `seq` return ()
 
 
-$(mkMethods ''AppState ['addState])
+$(mkMethods ''AppState ['addState, 'initCache])
 
 
 
 main :: IO ()
 main = do
     control <- startSystemState rootState
+    update $ InitCache
 
     forM_ [1..10] $ \_ -> do
         d <- BS.readFile "in"
