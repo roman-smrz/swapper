@@ -1,4 +1,4 @@
-all: test test-load happstack
+all: test test-load happstack in
 
 GHCOPTS+=-ltokyocabinet -i../src
 
@@ -10,6 +10,9 @@ test-load: *.hs
 
 happstack: *.hs
 	ghc --make happstack.hs $(GHCOPTS)
+
+in:
+	dd if=/dev/zero of=in bs=1024 count=1024
 
 clean:
 	rm -f *.hi *.o test test-load data* snapshot*
