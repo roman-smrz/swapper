@@ -30,7 +30,7 @@ import Data.Disk.Snapshot
 -- |
 -- First parameter of this class is actual cache type, the second is type of
 -- cached values. The cache should just hold an reference to those values that
--- are ment to be kept in memory.
+-- are meant to be kept in memory.
 
 class Cache a v | a -> v where
         -- |
@@ -55,7 +55,7 @@ instance Cache (SomeCache v) v where
 
 
 
--- | Provides standars clock cache with second chance mechanism.
+-- | Provides standard clock cache with second chance mechanism.
 data ClockCache a = ClockCache { ccSize :: Int,  ccData :: MVar [(IORef a, IORef Bool)] }
         deriving (Typeable)
 

@@ -9,7 +9,7 @@ description:
     used database files happens while the program is running.
 
     Because only actual data, not indices (in Data.Map.Map, for example), are
-    swapped and same accounting information are remembered for each item, this
+    swapped and some accounting information are remembered for each item, this
     system is suitable mainly for situations where values are considerably
     larger then indices. Furthermore, creating complete snapshots to a file of
     this structure is supported; such snapshot can be then loaded, with

@@ -71,7 +71,7 @@
 -- further reading), and create new one, with filename determined by given
 -- prefix and current counter.
 --
--- Loading snapshot is rather straitforward: Accounting data and database
+-- Loading snapshot is rather straightforward: Accounting data and database
 -- filename are extracted from snapshot, then that database is opened for
 -- reading, actual data are then retrieved, when they are needed. New database
 -- is created, with filename again given by prefix and counter, which is also
@@ -128,7 +128,7 @@ data Swappable a = Swappable
         , saFinalized :: !(MVar ())
         }
 
--- The Swapper type; contains database information, counter for generatin key
+-- The Swapper type; contains database information, counter for generating keys
 -- of newly added items, cache and actual content (consisting of Swappables).
 data Swapper f a = Swapper
         { spDB :: !SwapDB
@@ -149,10 +149,10 @@ data SwapDB = SwapDB
         , sdCounter :: !(IORef Integer)
         -- These are to components of database filename, the first is prefix,
         -- after which is appended current value of the counter (which is then
-        -- incremented) and finelly there goes the extension.
+        -- incremented) and finely there goes the extension.
 
         , sdSem :: QSemN
-        -- Semaphore to force synchronisation when changing databases.
+        -- Semaphore to force synchronization when changing databases.
         }
 
 
