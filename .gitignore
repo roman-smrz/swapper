@@ -1,1 +1,8 @@
 dist/
+test/in
+test/out
+test/test
+test/test-load
+test/happstack
+test/snapshot*
+test/_local
