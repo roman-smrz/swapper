@@ -1,6 +1,7 @@
 all: test test-load happstack in
 
 GHCOPTS+=-ltokyocabinet -i../src
+GHCOPTS+=-DTRACE_SAVING # prints info about saving/loading individual values
 
 test: *.hs
 	ghc --make test.hs $(GHCOPTS)

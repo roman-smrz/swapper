@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts, UndecidableInstances, ExistentialQuantification #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Data.Disk.Swapper.HappstackCompat (
@@ -52,7 +53,6 @@ instance Snapshot (Swapper f a) => Serialize (Swapper f a) where
 
         putCopy sw = contain . check . putToSnapshot $ sw
                 where check ioPut = unsafePerformIO $ do
-                          putStrLn "check"
                           c <- takeMVar checkPut
                           let prefix = swapperDBPrefix sw
                           case lookup prefix c of
@@ -65,7 +65,9 @@ instance Snapshot (Swapper f a) => Serialize (Swapper f a) where
 
 createSwapperCheckpoint :: MVar TxControl -> IO ()
 createSwapperCheckpoint txc = do
+#ifdef TRACE_SAVING
         putStrLn "createSwapperCheckpoint"
+#endif
         putMVar checkPut []
         createCheckpoint txc
         takeMVar checkPut

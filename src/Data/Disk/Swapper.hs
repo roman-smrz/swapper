@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 
 -- |
 -- Maintainer  : Roman Smrž <roman.smrz@seznam.cz>
@@ -246,7 +247,9 @@ instance (
 
 
         putToSnapshot sp = do
-                IO.putStrLn "Snapshot (start)"
+#ifdef TRACE_SAVING
+                IO.putStrLn "Beginning snapshot"
+#endif
                 spCnt <- readMVar (spCounter sp)
                 putData <- putToSnapshot $ fmap saKey $ spContent sp
 
@@ -295,10 +298,14 @@ return' x = x `pseq` return x
 swPutNewWeak :: (Serialize a) => Swappable a -> (a, IO ()) -> SwapDB -> IO ()
 swPutNewWeak sa (x, refresh) db = do
         value <- mkWeak x (x, refresh) $ Just $ do
-                IO.putStrLn $ "Ukladani " ++ show (fst (deserialize $ saKey sa) :: Integer)
+#ifdef TRACE_SAVING
+                IO.putStrLn $ "Saving " ++ show (fst (deserialize $ saKey sa) :: Integer)
+#endif
                 dbPut db (saKey sa) (serialize x)
                 putMVar (saFinalized sa) ()
-                IO.putStrLn $ "Ulozeno " ++ show (fst (deserialize $ saKey sa) :: Integer)
+#ifdef TRACE_SAVING
+                IO.putStrLn $ "Saved " ++ show (fst (deserialize $ saKey sa) :: Integer)
+#endif
 
         takeMVar (saFinalized sa)
         putMVar (saValue sa) value
@@ -307,7 +314,9 @@ swPutNewWeak sa (x, refresh) db = do
 -- Actual loading of data from database
 swLoader :: (Serialize a) => Swapper f a -> Key -> IO (a, IO ())
 swLoader sp key = do
-        IO.putStrLn $ "Nacitani " ++ show (fst (deserialize key) :: Integer)
+#ifdef TRACE_SAVING
+        IO.putStrLn $ "Loading " ++ show (fst (deserialize key) :: Integer)
+#endif
 
         value <- dbGet (spDB sp) key
         case value of
@@ -326,7 +335,9 @@ putSwappable sp x = deepseq x `pseq` unsafePerformIO $ do
         putMVar (spCounter sp) (c+1)
         let key = serialize c
 
-        IO.putStrLn $ "Vytvareni " ++ show c
+#ifdef TRACE_SAVING
+        IO.putStrLn $ "Creating " ++ show c
+#endif
 
         refresh <- addValueRef (spCache sp) x
         mvalue <- newEmptyMVar
@@ -334,7 +345,9 @@ putSwappable sp x = deepseq x `pseq` unsafePerformIO $ do
 
         let swappable = Swappable key mvalue mfin
         addFinalizer swappable $ do
-                IO.putStrLn ("Mazani "++show c)
+#ifdef TRACE_SAVING
+                IO.putStrLn ("Deleting "++show c)
+#endif
                 dbOut (spDB sp) key
                 return ()
 
