@@ -15,6 +15,12 @@ description:
     this structure is supported; such snapshot can be then loaded, with
     individual values being read as they are requested.
 
+    A prototype of another data structure, SwapMap, is available in the git
+    repository. It is similar to the Data.Map.Map and like Swapper allows
+    transparent swapping of data to disk, but without requiring any accessory
+    function and with the ability to swap both elements and indices. This one
+    is, however, not complete and thus not provided here.
+
 maintainer:     Roman Smrž <roman.smrz@seznam.cz>
 copyright:      2010, Roman Smrž
 category:       Data, Disk

@@ -1,7 +1,34 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
-module Data.Disk.SwapMap where
+-- |
+-- Maintainer  : Roman Smrž <roman.smrz@seznam.cz>
+-- Stability   : experimental
+--
+-- Experimental code providing a structure similar to the standard Map, which
+-- is able to swap the data to a database on disk. Unlike 'Swapper', in can
+-- swap both data and indices, and thus could be usable for data structures
+-- with more items and lower difference between the size of data and indices
+-- than 'Swapper', moreover the interface is cleaner without any accessory
+-- functions.
+--
+-- However, this would ideally work with some database with persistent writable
+-- snapshots and I was unable to find one I could use. The other, presently
+-- used, possibility is to work with ordinary database (TokioCabinet with
+-- interface from Swapper is used) and optimaze for "single-threaded" use,
+-- similarily to the idea of DiffArray. The worse, multi-threaded use-case, as
+-- well as using the cache to keep some of the values in memory, is however,
+-- not yet implemented. Also, the only interface provided so far is for
+-- creating, inserting and lookup.
 
+
+module Data.Disk.SwapMap (
+    SwapMap,
+    mkSwapMap,
+    insert, lookup,
+) where
+
+
+import Prelude hiding (lookup)
 
 import Control.Concurrent.MVar
 import Control.DeepSeq
@@ -19,7 +46,7 @@ import System.IO.Unsafe
 import qualified System.IO as IO
 
 import Data.Disk.Cache
-import qualified TokyoCabinet as Data.Disk.TC
+import qualified Data.Disk.TokyoCabinet as TC
 
 
 data (Ord k, Serialize k, Serialize a) => SwapMap k a = SwapMap (MVar (SwapMapData k a))
@@ -37,7 +64,13 @@ isCurrent (Diff _ _ _) = False
 isCurrent _ = True
 
 
-mkSwapMap :: (Ord k, Serialize k, Serialize a, Cache c k) => FilePath -> c -> IO (SwapMap k a)
+-- | Creates a 'SwapMap' object given a path prefix to database files and a
+-- cache object.
+
+mkSwapMap :: (Ord k, Serialize k, Serialize a, Cache c k)
+    => FilePath -- ^ prefix for database files, currently need to point to an existing directory
+    -> c        -- ^ cache object, presently unused
+    -> IO (SwapMap k a)
 mkSwapMap dir cache = do
         db <- TC.open $ dir ++ "/0.tcb"
         mcache <- newMVar cache
