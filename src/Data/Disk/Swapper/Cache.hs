@@ -12,7 +12,7 @@
 -- currently used in Swapper.
 
 
-module Data.Disk.Cache where
+module Data.Disk.Swapper.Cache where
 
 import Control.Concurrent.MVar
 import Control.Monad

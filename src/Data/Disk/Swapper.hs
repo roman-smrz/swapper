@@ -113,9 +113,9 @@ import System.IO.Unsafe
 import qualified System.IO as IO
 #endif
 
-import Data.Disk.Cache
-import Data.Disk.Snapshot
-import qualified Data.Disk.TokyoCabinet as TC
+import Data.Disk.Swapper.Cache
+import Data.Disk.Swapper.Snapshot
+import qualified Data.Disk.Swapper.TokyoCabinet as TC
 
 
 type Key = ByteString

@@ -1,7 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Data.Disk.TokyoCabinet (
+module Data.Disk.Swapper.TokyoCabinet (
         Database,
         open, close,
         put, get, out,

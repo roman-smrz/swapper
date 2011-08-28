@@ -10,7 +10,7 @@
 -- database files. Any instance of 'Serialize' is also trivially an instance of
 -- 'Snapshot'.
 
-module Data.Disk.Snapshot where
+module Data.Disk.Swapper.Snapshot where
 
 import Control.Monad
 

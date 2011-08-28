@@ -17,8 +17,8 @@ import Happstack.State
 import System.IO.Unsafe
 import System.Mem
 
-import Data.Disk.Cache
 import Data.Disk.Swapper
+import Data.Disk.Swapper.Cache
 import Data.Disk.Swapper.HappstackCompat
 
 

@@ -20,8 +20,8 @@ import System.IO.Unsafe
 import Unsafe.Coerce
 
 
-import Data.Disk.Snapshot
 import Data.Disk.Swapper
+import Data.Disk.Swapper.Snapshot
 
 
 data X = forall a. X a

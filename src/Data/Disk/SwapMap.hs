@@ -45,8 +45,8 @@ import System.Mem.Weak
 import System.IO.Unsafe
 import qualified System.IO as IO
 
-import Data.Disk.Cache
-import qualified Data.Disk.TokyoCabinet as TC
+import Data.Disk.Swapper.Cache
+import qualified Data.Disk.Swapper.TokyoCabinet as TC
 
 
 data (Ord k, Serialize k, Serialize a) => SwapMap k a = SwapMap (MVar (SwapMapData k a))
