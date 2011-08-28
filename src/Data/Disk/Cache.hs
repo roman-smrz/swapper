@@ -17,14 +17,8 @@ module Data.Disk.Cache where
 import Control.Concurrent.MVar
 import Control.Monad
 
-import Data.Binary.Get
-import Data.Binary.Put
 import Data.IORef
 import Data.Typeable
-
-import Happstack.Data
-
-import Data.Disk.Snapshot
 
 
 -- |

@@ -97,7 +97,6 @@ module Data.Disk.Swapper (
 import Control.Concurrent.MVar
 import Control.Concurrent.QSemN
 import Control.DeepSeq
-import Control.Monad hiding (forM)
 import Control.Parallel
 
 import Data.ByteString.Lazy as BS hiding (map)
@@ -110,7 +109,9 @@ import Happstack.Data.Serialize
 import System.Mem.Weak
 import System.IO.Unsafe
 
+#ifdef TRACE_SAVING
 import qualified System.IO as IO
+#endif
 
 import Data.Disk.Cache
 import Data.Disk.Snapshot
@@ -289,8 +290,6 @@ instance (
                         putData
 
 
-(=<<!) :: (Monad m) => (a -> m b) -> m a -> m b
-f =<<! a = a `pseq` (f =<< a)
 return' :: (Monad m) => a -> m a
 return' x = x `pseq` return x
 
