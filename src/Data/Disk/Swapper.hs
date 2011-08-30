@@ -90,6 +90,7 @@ module Data.Disk.Swapper (
         adding,
         getting,
         changing,
+        applying,
         swapperDBPrefix,
 ) where
 
@@ -466,6 +467,20 @@ getting f sp = getSwappable sp $ f $ spContent sp
 changing :: (Serialize a) => (forall b. f b -> f b) -> (Swapper f a -> Swapper f a)
 changing f sp = sp { spContent = f (spContent sp) }
 
+
+-- |
+-- For computations that do not touch elements of the 'Swapper', but compute
+-- something from the structure of the functor itself, like length or null, is
+-- intended the function 'applying'.
+--
+-- > a :: Swapper [] Int
+-- > let l = applying length a
+--
+-- > b :: Swapper (Map String) Int
+-- > let n = applying null b
+
+applying :: (forall b. f b -> a) -> (Swapper f b -> a)
+applying f = f . spContent
 
 
 swapperDBPrefix :: Swapper f a -> FilePath
