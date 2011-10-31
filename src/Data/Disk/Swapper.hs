@@ -98,6 +98,7 @@ module Data.Disk.Swapper (
 import Control.Concurrent.MVar
 import Control.Concurrent.QSemN
 import Control.DeepSeq
+import Control.Monad hiding (forM)
 import Control.Parallel
 
 import Data.ByteString.Lazy as BS hiding (map)
@@ -128,7 +129,7 @@ type Key = ByteString
 data Swappable a = Swappable
         { saKey :: !Key
         , saValue :: !(MVar (Weak (a, IO ())))
-        , saFinalized :: !(MVar ())
+        , saFinalized :: !(MVar Integer)
         }
 
 -- The Swapper type; contains database information, counter for generating keys
@@ -142,14 +143,13 @@ data Swapper f a = Swapper
 
 -- Data needed to manage access to database
 data SwapDB = SwapDB
-        { sdDB :: !(MVar [TC.Database])
+        { sdDB :: !(MVar [(Integer, TC.Database)])
         -- List of open databases, the first one is for writing, the rest are
         -- read-only databases, created when loading snapshot (the database
         -- accompanying the snapshot), or when creating snapshot (the old
         -- database, which was formerly used for writing).
 
         , sdPrefix :: !FilePath
-        , sdCounter :: !(IORef Integer)
         -- These are to components of database filename, the first is prefix,
         -- after which is appended current value of the counter (which is then
         -- incremented) and finely there goes the extension.
@@ -168,12 +168,11 @@ data SwapDB = SwapDB
 dbOpen :: FilePath -> IO SwapDB
 dbOpen prefix = do
         cdb <- TC.open (prefix ++ "0.tcb")
-        tdb <- newMVar [cdb]
-        counter <- newIORef 0
+        tdb <- newMVar [(0,cdb)]
         sem <- newQSemN 1000
-        return $ SwapDB { sdDB = tdb, sdPrefix = prefix, sdCounter = counter, sdSem = sem }
+        return $ SwapDB { sdDB = tdb, sdPrefix = prefix, sdSem = sem }
 
-withDB :: SwapDB -> ([TC.Database] -> IO a) -> IO a
+withDB :: SwapDB -> ([(Integer, TC.Database)] -> IO a) -> IO a
 withDB db f = do
         dbs <- readMVar (sdDB db)
         waitQSemN (sdSem db) 1
@@ -181,19 +180,21 @@ withDB db f = do
         signalQSemN (sdSem db) 1
         return res
 
-dbPut :: SwapDB -> ByteString -> ByteString -> IO Bool
-dbPut db key value = withDB db $ \(cdb:_) -> TC.put cdb key value
+dbPut :: SwapDB -> ByteString -> ByteString -> IO Integer
+dbPut db key value = withDB db $ \((i,cdb):_) -> do
+    ok <- TC.put cdb key value
+    if ok then return i else error "Error writing into database"
 
 dbGet :: SwapDB -> ByteString -> IO (Maybe ByteString)
 dbGet db key = withDB db get
-        where get [] = return Nothing
-              get (cdb:rest) = do value <- TC.get cdb key
+    where get [] = return Nothing
+          get ((_,cdb):rest) = do value <- TC.get cdb key
                                   case value of
                                        res@(Just _) -> return res
                                        Nothing      -> get rest
 
 dbOut :: SwapDB -> ByteString -> IO Bool
-dbOut db key = withDB db $ \(cdb:_) -> TC.out cdb key
+dbOut db key = withDB db $ \((_,cdb):_) -> TC.out cdb key
 
 
 -- Instances of Typeable and Snapshot classes
@@ -231,17 +232,16 @@ instance (
                         finalize emptyWeak
                         data_ <- forM keys $ \key -> do
                                 mval <- newMVar emptyWeak
-                                mfin <- newMVar ()
+                                mfin <- newMVar cnt
                                 return $ Swappable { saKey = key, saValue = mval, saFinalized = mfin }
 
-                        dbcounter <- newIORef (cnt+1)
                         odb <- TC.open $ prefix ++ show cnt ++ ".tcb#mode=r"
                         ndb <- TC.open $ prefix ++ show (cnt+1) ++ ".tcb"
-                        dbs <- newMVar [ndb,odb]
+                        dbs <- newMVar [(cnt+1,ndb),(cnt,odb)]
                         sem <- newQSemN 1000
 
                         return $ Swapper
-                                { spDB = SwapDB { sdDB = dbs, sdPrefix = prefix, sdCounter = dbcounter, sdSem = sem  }
+                                { spDB = SwapDB { sdDB = dbs, sdPrefix = prefix, sdSem = sem  }
                                 , spCounter = mcounter
                                 , spCache = cache
                                 , spContent = data_
@@ -255,34 +255,54 @@ instance (
                 spCnt <- readMVar (spCounter sp)
                 putData <- putToSnapshot $ fmap saKey $ spContent sp
 
+                -- Open and add new database for writing
+                ((cnt, cdb):rest) <- takeMVar (sdDB $ spDB sp)
+                waitQSemN (sdSem $ spDB sp) 1000
+                ndb <- TC.open $ (sdPrefix $ spDB sp) ++ show (cnt+1) ++ ".tcb"
+                signalQSemN (sdSem $ spDB sp) 1000
+                putMVar (sdDB $ spDB sp) ((cnt+1,ndb):(cnt,cdb):rest)
+
+                -- Write necessary content into database
                 forM (spContent sp) $ \sa -> do
-                        wx <- takeMVar $ saValue sa
-                        mx <- deRefWeak wx
-                        case mx of
-                             Just (x, _) -> dbPut (spDB sp) (saKey sa) (serialize x)
-                             Nothing -> do
-                                     readMVar (saFinalized sa)
+                    wx <- takeMVar $ saValue sa
+                    mx <- deRefWeak wx
+                    case mx of
+                         Just (x, _) -> do
+#ifdef TRACE_SAVING
+                             IO.putStrLn $ "Saving (cached) " ++ show (fst (deserialize $ saKey sa) :: Integer)
+#endif
+                             ok <- TC.put cdb (saKey sa) (serialize x)
+                             unless ok $ error "Error writing into DB"
 
-                                     -- TODO: this copying is necessary only when the data
-                                     --       were finalized to some older DB:
-                                     mbx <- dbGet (spDB sp) (saKey sa)
-                                     case mbx of
-                                          Just x  -> dbPut (spDB sp) (saKey sa) x
-                                          Nothing -> error "Data not found in DB (snapshot)!"
+                         Nothing -> do
+                             finalize wx
+                             fcnt <- takeMVar (saFinalized sa)
 
-                        putMVar (saValue sa) wx
+                             when (fcnt /= cnt) $ do
+                                 -- if the data were finalize to some other DB,
+                                 -- write them also to the new one
+                                 mbx <- dbGet (spDB sp) (saKey sa)
+#ifdef TRACE_SAVING
+                                 IO.putStrLn $ "Saving (old) " ++ show (fst (deserialize $ saKey sa) :: Integer)
+#endif
+                                 case mbx of
+                                      Just x  -> do ok <- TC.put cdb (saKey sa) x
+                                                    unless ok $ error "Error writing into DB"
+                                      Nothing -> error "Data not found in DB (snapshot)!"
 
-                (cdb:rest) <- takeMVar (sdDB $ spDB sp)
+                             putMVar (saFinalized sa) $ max fcnt cnt
+
+                    putMVar (saValue sa) wx
+
+                -- Reopen the database we used for snapshot for reading only
+                dbs <- takeMVar (sdDB $ spDB sp)
                 waitQSemN (sdSem $ spDB sp) 1000
 
-                cnt <- readIORef (sdCounter $ spDB sp)
                 TC.close cdb
                 cdb' <- TC.open $ (sdPrefix $ spDB sp) ++ show cnt ++ ".tcb#mode=r"
-                ndb <- TC.open $ (sdPrefix $ spDB sp) ++ show (cnt+1) ++ ".tcb"
-                writeIORef (sdCounter $ spDB sp) (cnt+1)
 
                 signalQSemN (sdSem $ spDB sp) 1000
-                putMVar (sdDB $ spDB sp) (ndb:cdb':rest)
+                putMVar (sdDB $ spDB sp) $ map (\(i,db) -> if i == cnt then (i,cdb') else (i,db)) dbs
 
                 return $ do
                         safePut (sdPrefix $ spDB sp)
@@ -301,8 +321,8 @@ swPutNewWeak sa (x, refresh) db = do
 #ifdef TRACE_SAVING
                 IO.putStrLn $ "Saving " ++ show (fst (deserialize $ saKey sa) :: Integer)
 #endif
-                dbPut db (saKey sa) (serialize x)
-                putMVar (saFinalized sa) ()
+                putMVar (saFinalized sa) =<<
+                    dbPut db (saKey sa) (serialize x)
 #ifdef TRACE_SAVING
                 IO.putStrLn $ "Saved " ++ show (fst (deserialize $ saKey sa) :: Integer)
 #endif
@@ -341,7 +361,8 @@ putSwappable sp x = deepseq x `pseq` unsafePerformIO $ do
 
         refresh <- addValueRef (spCache sp) x
         mvalue <- newEmptyMVar
-        mfin <- newMVar ()
+        mfin <- newMVar (-1) -- We need this initialization because swPutNewWeak attempts
+                             -- to take this MVar before putting a new weak reference.
 
         let swappable = Swappable key mvalue mfin
         addFinalizer swappable $ do
