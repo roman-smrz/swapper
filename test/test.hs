@@ -2,6 +2,7 @@ module Main where
 
 import Prelude hiding (lookup)
 
+import Control.Concurrent
 import Control.DeepSeq
 import Control.Monad
 
@@ -66,7 +67,20 @@ main = do
                 writeIORef x $! adding (:) d x'
                 performGC
 
-        BSL.writeFile "snapshot1" . runPut =<< putToSnapshot =<< readIORef x
-        BSL.writeFile "snapshot2" . runPut =<< putToSnapshot =<< readIORef x
+
+        wait1 <- newEmptyMVar
+        wait2 <- newEmptyMVar
+
+        forkIO $ do
+            BSL.writeFile "snapshot1" . runPut =<< putToSnapshot =<< readIORef x
+            putMVar wait1 ()
+
+        forkIO $ do
+            BSL.writeFile "snapshot2" . runPut =<< putToSnapshot =<< readIORef x
+            putMVar wait2 ()
+
+        takeMVar wait1
+        takeMVar wait2
+
 
         print . BS.length . getting last =<< readIORef x
